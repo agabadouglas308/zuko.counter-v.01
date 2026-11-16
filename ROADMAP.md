@@ -26,8 +26,8 @@
 ## Milestone 4 — resilience and validation (in progress)
 
 - [x] deterministic fault-injection tool for dropped, delayed, and contradictory observations;
-- [ ] replay assertions for event counts, ordering, and policy transitions;
-- [ ] explicit stale-track and out-of-order timestamp behavior;
+- [x] replay assertions for event counts, ordering, and policy transitions;
+- [x] explicit stale-track and out-of-order timestamp behavior;
 - [ ] integration tests covering malformed, partial, and duplicate streams;
 - [ ] failure-mode documentation for operators and developers.
 

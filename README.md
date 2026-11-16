@@ -116,3 +116,16 @@ python3 scripts/fault_inject_scenario.py scenarios/smoke.ndjson \
 ```
 
 These transformations are test fixtures only. They do not access real sensors or create control paths to any external system.
+
+Replay output can be checked for expected policy transitions:
+
+```bash
+./scripts/replay_scenario.sh ./scenarios/smoke.ndjson > /tmp/replay.ndjson
+python3 scripts/assert_replay.py /tmp/replay.ndjson \
+  --min-updates 2 \
+  --require-recommendation notify_site_security \
+  --require-recommendation request_operator_review
+./scripts/test_sequence_validation.sh
+```
+
+The Rust engine rejects duplicate event IDs and observations older than the latest timestamp for the same target. Equal timestamps from different sensors remain valid.

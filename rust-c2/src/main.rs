@@ -143,6 +143,23 @@ fn recommendation(track: &Track) -> &'static str {
     }
 }
 
+fn validate_sequence(
+    observation: &Observation,
+    seen_event_ids: &mut HashSet<String>,
+    tracks: &HashMap<String, Track>,
+) -> Result<(), &'static str> {
+    if !seen_event_ids.insert(observation.event_id.clone()) {
+        return Err("duplicate event_id");
+    }
+    if tracks
+        .get(&observation.target_id)
+        .is_some_and(|track| observation.timestamp_ms < track.last_timestamp_ms)
+    {
+        return Err("out-of-order timestamp");
+    }
+    Ok(())
+}
+
 fn audit_path() -> Result<Option<PathBuf>, String> {
     let mut args = env::args().skip(1);
     let mut result = None;
@@ -170,6 +187,7 @@ fn run() -> Result<(), String> {
     };
     let stdin = io::stdin();
     let mut tracks: HashMap<String, Track> = HashMap::new();
+    let mut seen_event_ids = HashSet::new();
     println!(
         "{}",
         json!({"kind": "status", "schema_version": SCHEMA_VERSION, "message": "rust-c2-ready"})
@@ -180,6 +198,10 @@ fn run() -> Result<(), String> {
             eprintln!("ignored malformed or unsupported event");
             continue;
         };
+        if let Err(reason) = validate_sequence(&obs, &mut seen_event_ids, &tracks) {
+            eprintln!("ignored {reason}: {}", obs.event_id);
+            continue;
+        }
         let entry = tracks
             .entry(obs.target_id.clone())
             .or_insert_with(|| Track {
@@ -258,6 +280,36 @@ mod tests {
         assert!(
             parse_observation(&VALID.replace("\"schema_version\":1", "\"schema_version\":2"))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn duplicate_event_ids_are_rejected() {
+        let obs = observation(VALID);
+        let mut seen = HashSet::new();
+        let tracks = HashMap::new();
+        assert!(validate_sequence(&obs, &mut seen, &tracks).is_ok());
+        assert_eq!(
+            validate_sequence(&obs, &mut seen, &tracks),
+            Err("duplicate event_id")
+        );
+    }
+
+    #[test]
+    fn older_timestamp_for_existing_target_is_rejected() {
+        let obs = observation(VALID);
+        let mut seen = HashSet::new();
+        let mut tracks = HashMap::new();
+        tracks.insert(
+            "test".into(),
+            Track {
+                last_timestamp_ms: 2_000,
+                ..Track::default()
+            },
+        );
+        assert_eq!(
+            validate_sequence(&obs, &mut seen, &tracks),
+            Err("out-of-order timestamp")
         );
     }
 
