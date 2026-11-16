@@ -12,7 +12,7 @@
 
 - [x] replace the intentionally minimal parser with typed `serde` + `serde_json` models;
 - [x] add Rust unit tests for malformed input, confidence clamping, and geofence edges;
-- [ ] add C++ unit tests for deterministic sensor generation;
+- [x] add C++ deterministic stream tests through CTest;
 - [x] add timestamps, schema versioning, and correlation IDs;
 - [x] add structured append-only audit storage.
 
@@ -20,7 +20,7 @@
 
 - [ ] read-only local dashboard for tracks, confidence, and sensor provenance;
 - [ ] explicit human acknowledgement state machine;
-- [ ] replay mode for recorded synthetic scenarios;
+- [x] replay mode for recorded synthetic scenarios;
 - [ ] fault injection for dropped, delayed, and contradictory observations.
 
 ## Out of scope

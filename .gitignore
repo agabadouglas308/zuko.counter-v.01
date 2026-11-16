@@ -3,3 +3,4 @@ cpp-sensors/build/
 rust-c2/target/
 /tmp/
 audit.ndjson
+scenarios/baseline.ndjson

@@ -7,3 +7,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(cuassensors src/main.cpp)
 target_compile_options(cuassensors PRIVATE -Wall -Wextra -Wpedantic)
+
+enable_testing()
+add_test(
+    NAME deterministic_sensor_stream
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_deterministic_stream.sh $<TARGET_FILE:cuassensors>
+)

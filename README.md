@@ -64,3 +64,28 @@ The Rust side uses typed `serde`/`serde_json` models for observation validation 
 ## Safety boundary
 
 The simulator is for software architecture, testing, and operator workflow research. Any real deployment would require qualified safety, legal, privacy, cybersecurity, and human-in-the-loop review. The policy engine only recommends benign actions such as `continue_observation`, `request_operator_review`, and `notify_site_security`.
+
+## Reproducible scenarios
+
+The C++ simulator can be recorded as an NDJSON scenario and replayed through the Rust engine:
+
+```bash
+./scripts/record_scenario.sh ./scenarios/baseline.ndjson
+./scripts/replay_scenario.sh ./scenarios/baseline.ndjson ./audit.ndjson
+```
+
+A small checked-in fixture is available for quick checks:
+
+```bash
+./scripts/replay_scenario.sh ./scenarios/smoke.ndjson
+```
+
+Run the C++ deterministic test through CTest:
+
+```bash
+cmake -S cpp-sensors -B cpp-sensors/build
+cmake --build cpp-sensors/build
+ctest --test-dir cpp-sensors/build --output-on-failure
+```
+
+These scripts are explicit developer tools. They can overwrite the requested scenario or audit output paths, but they never overwrite source code or modify themselves at runtime.
