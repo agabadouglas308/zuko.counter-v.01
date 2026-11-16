@@ -1,0 +1,4 @@
+cpp-sensors/build/
+*.o
+rust-c2/target/
+/tmp/
