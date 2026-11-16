@@ -89,3 +89,16 @@ ctest --test-dir cpp-sensors/build --output-on-failure
 ```
 
 These scripts are explicit developer tools. They can overwrite the requested scenario or audit output paths, but they never overwrite source code or modify themselves at runtime.
+
+## Milestone 3: local operator review
+
+The read-only dashboard serves audit records from loopback only. It has no sensor controls, effector controls, aiming controls, or engagement APIs. The only state change it permits is a local in-memory acknowledgement of an advisory review item.
+
+Generate an audit file, then start the dashboard in another terminal:
+
+```bash
+./scripts/replay_scenario.sh ./scenarios/smoke.ndjson ./audit.ndjson
+cargo run --manifest-path rust-c2/Cargo.toml --bin dashboard -- --audit-log ./audit.ndjson --port 8080
+```
+
+Open `http://127.0.0.1:8080`. Acknowledgements reset when the dashboard process exits; the audit file remains append-only and unchanged.

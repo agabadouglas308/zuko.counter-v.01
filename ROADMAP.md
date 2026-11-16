@@ -18,8 +18,8 @@
 
 ## Milestone 3 — operator workflow
 
-- [ ] read-only local dashboard for tracks, confidence, and sensor provenance;
-- [ ] explicit human acknowledgement state machine;
+- [x] read-only local dashboard for tracks, confidence, and sensor provenance;
+- [x] explicit human acknowledgement state machine;
 - [x] replay mode for recorded synthetic scenarios;
 - [ ] fault injection for dropped, delayed, and contradictory observations.
 
