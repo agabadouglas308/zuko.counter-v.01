@@ -102,3 +102,17 @@ cargo run --manifest-path rust-c2/Cargo.toml --bin dashboard -- --audit-log ./au
 ```
 
 Open `http://127.0.0.1:8080`. Acknowledgements reset when the dashboard process exits; the audit file remains append-only and unchanged.
+
+## Milestone 4: resilience scenarios
+
+Synthetic scenarios can be degraded deterministically before replay. The fault injector supports dropped observations, fixed timestamp delays, and contradictory low-confidence positions:
+
+```bash
+python3 scripts/fault_inject_scenario.py scenarios/smoke.ndjson \
+  --drop-every 3 --delay-ms 500 --contradict-every 5 \
+  --output /tmp/degraded.ndjson
+./scripts/replay_scenario.sh /tmp/degraded.ndjson
+./scripts/test_fault_injection.sh
+```
+
+These transformations are test fixtures only. They do not access real sensors or create control paths to any external system.

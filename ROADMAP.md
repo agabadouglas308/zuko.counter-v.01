@@ -23,6 +23,30 @@
 - [x] replay mode for recorded synthetic scenarios;
 - [ ] fault injection for dropped, delayed, and contradictory observations.
 
+## Milestone 4 — resilience and validation (in progress)
+
+- [x] deterministic fault-injection tool for dropped, delayed, and contradictory observations;
+- [ ] replay assertions for event counts, ordering, and policy transitions;
+- [ ] explicit stale-track and out-of-order timestamp behavior;
+- [ ] integration tests covering malformed, partial, and duplicate streams;
+- [ ] failure-mode documentation for operators and developers.
+
+## Milestone 5 — configuration and delivery
+
+- [ ] external versioned configuration for protected zones and policy thresholds;
+- [ ] configuration validation and safe startup failure behavior;
+- [ ] reproducible developer and CI commands;
+- [ ] dependency auditing and supply-chain checks;
+- [ ] release packaging for Fedora development environments.
+
+## Milestone 6 — observability and controlled deployment
+
+- [ ] health and readiness endpoints for local services;
+- [ ] structured operational metrics and bounded log retention guidance;
+- [ ] access-control design for any non-loopback deployment;
+- [ ] threat model, privacy review, and cybersecurity checklist;
+- [ ] deployment runbook with explicit human-in-the-loop and safety gates.
+
 ## Out of scope
 
 - effectors, weapons, aiming, engagement, jamming, spoofing, cyber takeover, or autonomous physical intervention;
