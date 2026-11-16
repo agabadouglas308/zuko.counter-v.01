@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::{Read, Write};
@@ -17,12 +17,12 @@ body{font:15px system-ui,sans-serif;background:#10151c;color:#e8eef5;margin:0}ma
 <div class="banner"><b>Human review state:</b> <span id="summary">Loading…</span></div>
 <div class="table"><table><thead><tr><th>Time</th><th>Target</th><th>Sensor</th><th>Confidence</th><th>Recommendation</th><th>Review</th></tr></thead><tbody id="rows"></tbody></table></div>
 </main><script>
-async function refresh(){const [events,acks]=await Promise.all([fetch('/api/events').then(r=>r.json()),fetch('/api/acks').then(r=>r.json())]);
+async function refresh(){const events=await fetch('/api/events').then(r=>r.json());
 const rows=document.getElementById('rows'); rows.innerHTML=''; let pending=0;
-for(const e of events){const id=e.event_id; const acked=acks.includes(id); if(!acked) pending++;
+for(const e of events){const id=e.event_id; const acked=e.review_state==='acknowledged'; if(!acked) pending++;
 const tr=document.createElement('tr'); const rec=e.recommendation||''; const cls=rec.includes('review')?'review':rec.includes('security')?'security':'observe';
 tr.innerHTML=`<td>${e.timestamp_ms??''}</td><td>${e.target_id??''}</td><td>${e.source_sensor??''}</td><td>${((e.confidence||0)*100).toFixed(1)}%</td><td class="${cls}">${rec}</td><td></td>`;
-const cell=tr.lastElementChild; const b=document.createElement('button'); b.textContent=acked?'Reviewed':'Acknowledge review'; b.disabled=acked; b.onclick=async()=>{await fetch('/api/ack',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event_id:id})});refresh()}; cell.appendChild(b); rows.appendChild(tr)}
+const cell=tr.lastElementChild; const b=document.createElement('button'); b.textContent=acked?'Acknowledged':'Acknowledge review'; b.disabled=acked; b.onclick=async()=>{await fetch('/api/ack',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event_id:id})});refresh()}; cell.appendChild(b); rows.appendChild(tr)}
 document.getElementById('summary').textContent=`${pending} pending / ${events.length} total track updates`}
 refresh(); setInterval(refresh,3000);
 </script></body></html>"#;
@@ -30,25 +30,84 @@ refresh(); setInterval(refresh,3000);
 #[derive(Clone)]
 struct AppState {
     audit_path: String,
-    acknowledgements: Arc<Mutex<HashSet<String>>>,
+    reviews: Arc<Mutex<HashMap<String, String>>>,
 }
 
 fn response(status: &str, content_type: &str, body: &str) -> String {
     format!("HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
 }
 
-fn events(state: &AppState) -> Vec<Value> {
+fn audit_events(state: &AppState) -> Vec<Value> {
+    let reviews = state.reviews.lock().unwrap();
     fs::read_to_string(&state.audit_path)
         .unwrap_or_default()
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .map(|mut event| {
+            let id = event.get("event_id").and_then(Value::as_str).unwrap_or("");
+            let state = reviews.get(id).map(String::as_str).unwrap_or("pending");
+            event["review_state"] = Value::String(state.to_string());
+            event
+        })
         .collect()
 }
 
+fn known_event(state: &AppState, id: &str) -> bool {
+    fs::read_to_string(&state.audit_path)
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .any(|event| event.get("event_id").and_then(Value::as_str) == Some(id))
+}
+
+fn acknowledge(state: &AppState, id: &str) -> Result<&'static str, &'static str> {
+    if id.is_empty() {
+        return Err("event_id required");
+    }
+    if !known_event(state, id) {
+        return Err("unknown event_id");
+    }
+    let mut reviews = state.reviews.lock().unwrap();
+    if reviews.get(id).map(String::as_str) == Some("acknowledged") {
+        return Ok("already_acknowledged");
+    }
+    reviews.insert(id.to_string(), "acknowledged".to_string());
+    Ok("acknowledged")
+}
+
+fn read_request(stream: &mut TcpStream) -> String {
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 1024];
+    let header_end = loop {
+        let size = stream.read(&mut buffer).unwrap_or(0);
+        if size == 0 {
+            return String::from_utf8_lossy(&bytes).into_owned();
+        }
+        bytes.extend_from_slice(&buffer[..size]);
+        if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+            break end + 4;
+        }
+    };
+    let headers = String::from_utf8_lossy(&bytes[..header_end]);
+    let content_length = headers
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("Content-Length:")
+                .and_then(|value| value.trim().parse::<usize>().ok())
+        })
+        .unwrap_or(0);
+    while bytes.len() < header_end + content_length {
+        let size = stream.read(&mut buffer).unwrap_or(0);
+        if size == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&buffer[..size]);
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
 fn handle(mut stream: TcpStream, state: &AppState) {
-    let mut head = [0u8; 4096];
-    let size = stream.read(&mut head).unwrap_or(0);
-    let request = String::from_utf8_lossy(&head[..size]);
+    let request = read_request(&mut stream);
     let first = request.lines().next().unwrap_or("");
     let mut parts = first.split_whitespace();
     let method = parts.next().unwrap_or("");
@@ -58,30 +117,47 @@ fn handle(mut stream: TcpStream, state: &AppState) {
         ("GET", "/api/events") => response(
             "200 OK",
             "application/json",
-            &serde_json::to_string(&events(state)).unwrap(),
+            &serde_json::to_string(&audit_events(state)).unwrap(),
         ),
         ("GET", "/api/acks") => {
-            let acks = state.acknowledgements.lock().unwrap();
+            let reviews = state.reviews.lock().unwrap();
+            let acks: Vec<&String> = reviews
+                .iter()
+                .filter(|(_, state)| state.as_str() == "acknowledged")
+                .map(|(id, _)| id)
+                .collect();
             response(
                 "200 OK",
                 "application/json",
-                &serde_json::to_string(&*acks).unwrap(),
+                &serde_json::to_string(&acks).unwrap(),
             )
         }
         ("POST", "/api/ack") => {
             let payload = request.split("\r\n\r\n").nth(1).unwrap_or("");
-            match serde_json::from_str::<Value>(payload)
+            let id = serde_json::from_str::<Value>(payload)
                 .ok()
-                .and_then(|v| v.get("event_id").and_then(Value::as_str).map(str::to_owned))
-            {
-                Some(id) if !id.is_empty() => {
-                    state.acknowledgements.lock().unwrap().insert(id);
-                    response("200 OK", "application/json", "{\"ok\":true}")
-                }
-                _ => response(
+                .and_then(|value| {
+                    value
+                        .get("event_id")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .unwrap_or_default();
+            match acknowledge(state, &id) {
+                Ok(status) => response(
+                    "200 OK",
+                    "application/json",
+                    &format!(r#"{{"ok":true,"state":"{status}"}}"#),
+                ),
+                Err("unknown event_id") => response(
+                    "404 Not Found",
+                    "application/json",
+                    r#"{"ok":false,"error":"unknown event_id"}"#,
+                ),
+                Err(_) => response(
                     "400 Bad Request",
                     "application/json",
-                    "{\"ok\":false,\"error\":\"event_id required\"}",
+                    r#"{"ok":false,"error":"event_id required"}"#,
                 ),
             }
         }
@@ -107,10 +183,52 @@ fn main() {
         TcpListener::bind(format!("127.0.0.1:{port}")).expect("cannot bind local dashboard");
     let state = AppState {
         audit_path: audit.clone(),
-        acknowledgements: Arc::new(Mutex::new(HashSet::new())),
+        reviews: Arc::new(Mutex::new(HashMap::new())),
     };
     eprintln!("dashboard listening on http://127.0.0.1:{port} using {audit}");
     for stream in listener.incoming().flatten() {
         handle(stream, &state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn state() -> AppState {
+        let path = std::env::temp_dir().join(format!(
+            "dashboard-test-{}.ndjson",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(
+            &path,
+            r#"{"event_id":"audit-1","kind":"audit_track_update"}
+"#,
+        )
+        .unwrap();
+        AppState {
+            audit_path: path.to_string_lossy().into_owned(),
+            reviews: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[test]
+    fn acknowledgement_transitions_from_pending_to_acknowledged() {
+        let app = state();
+        assert_eq!(audit_events(&app)[0]["review_state"], "pending");
+        assert_eq!(acknowledge(&app, "audit-1"), Ok("acknowledged"));
+        assert_eq!(acknowledge(&app, "audit-1"), Ok("already_acknowledged"));
+        assert_eq!(audit_events(&app)[0]["review_state"], "acknowledged");
+    }
+
+    #[test]
+    fn unknown_event_cannot_be_acknowledged() {
+        let app = state();
+        assert_eq!(acknowledge(&app, "missing"), Err("unknown event_id"));
     }
 }

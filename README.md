@@ -103,6 +103,8 @@ cargo run --manifest-path rust-c2/Cargo.toml --bin dashboard -- --audit-log ./au
 
 Open `http://127.0.0.1:8080`. Acknowledgements reset when the dashboard process exits; the audit file remains append-only and unchanged.
 
+Dashboard review states are event-backed: each audit event starts as `pending`, a valid acknowledgement transitions it to `acknowledged`, repeated acknowledgement is idempotent, and unknown event IDs are rejected with HTTP 404.
+
 ## Milestone 4: resilience scenarios
 
 Synthetic scenarios can be degraded deterministically before replay. The fault injector supports dropped observations, fixed timestamp delays, and contradictory low-confidence positions:

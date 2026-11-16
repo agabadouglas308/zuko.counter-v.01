@@ -20,6 +20,7 @@
 
 - [x] read-only local dashboard for tracks, confidence, and sensor provenance;
 - [x] explicit human acknowledgement state machine;
+- [x] validate dashboard acknowledgement transitions and reject unknown event IDs;
 - [x] replay mode for recorded synthetic scenarios;
 - [ ] fault injection for dropped, delayed, and contradictory observations.
 
