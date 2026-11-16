@@ -9,7 +9,8 @@ struct Vec3 { double x, y, z; };
 static void emit_observation(const std::string& sensor, const std::string& target,
                              long long timestamp_ms, Vec3 p, Vec3 v, double confidence) {
     std::cout << std::fixed << std::setprecision(3)
-              << "{\"kind\":\"observation\",\"sensor\":\"" << sensor
+              << "{\"kind\":\"observation\",\"schema_version\":1,\"event_id\":\"obs-"
+              << timestamp_ms << "-" << sensor << "\",\"sensor\":\"" << sensor
               << "\",\"target_id\":\"" << target
               << "\",\"timestamp_ms\":" << timestamp_ms
               << ",\"position\":{\"x_m\":" << p.x << ",\"y_m\":" << p.y << ",\"z_m\":" << p.z << "}"

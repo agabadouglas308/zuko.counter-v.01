@@ -44,6 +44,15 @@ For a smoke test without process piping:
 ./cpp-sensors/build/cuassensors | cargo run --manifest-path rust-c2/Cargo.toml
 ```
 
+To retain an append-only audit stream while running the Rust C2 process:
+
+```bash
+./cpp-sensors/build/cuassensors \
+  | cargo run --manifest-path rust-c2/Cargo.toml -- --audit-log ./audit.ndjson
+```
+
+Events are schema-versioned and carry event IDs. Source files are changed only through an explicit developer or CI action; the running process does not rewrite its own code.
+
 Run the Rust unit tests with:
 
 ```bash

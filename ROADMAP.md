@@ -13,8 +13,8 @@
 - [x] replace the intentionally minimal parser with typed `serde` + `serde_json` models;
 - [x] add Rust unit tests for malformed input, confidence clamping, and geofence edges;
 - [ ] add C++ unit tests for deterministic sensor generation;
-- [ ] add timestamps, schema versioning, and correlation IDs;
-- [ ] add structured append-only audit storage.
+- [x] add timestamps, schema versioning, and correlation IDs;
+- [x] add structured append-only audit storage.
 
 ## Milestone 3 — operator workflow
 
